@@ -1,0 +1,90 @@
+version: '3.9'
+
+services:
+  # ─────────────── PostgreSQL Database ───────────────
+  db:
+    image: postgres:16-alpine
+    container_name: sentineledu-db
+    environment:
+      POSTGRES_DB: sentineledu
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sentinel_secure_pw}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentineledu"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentinel-net
+
+  # ─────────────── ML Engine (one-shot trainer) ───────────────
+  engine:
+    build:
+      context: ./engine
+      dockerfile: Dockerfile
+    container_name: sentineledu-engine
+    volumes:
+      - model_data:/app/models
+      - ./engine/data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python train_model.py
+    networks:
+      - sentinel-net
+
+  # ─────────────── FastAPI Backend ───────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentineledu-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - model_data:/app/engine/models:ro
+    environment:
+      DATABASE_URL: postgresql://sentinel:${DB_PASSWORD:-sentinel_secure_pw}@db:5432/sentineledu
+      MODEL_PATH: /app/engine/models/sentinel_model.joblib
+      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000"
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - sentinel-net
+
+  # ─────────────── Next.js Frontend ───────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: sentineledu-frontend
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - sentinel-net
+
+volumes:
+  postgres_data:
+  model_data:
+
+networks:
+  sentinel-net:
+    driver: bridge
