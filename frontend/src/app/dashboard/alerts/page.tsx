@@ -9,7 +9,7 @@ export default function AlertsPage() {
   const high = all.filter(s => s.alert_level === 'high')
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
-  const dismiss = (id: string) => setDismissed(p => new Set([...p, id]))
+  const dismiss = (id: string) => setDismissed(p => new Set(Array.from(p).concat(id)))
 
   return (
     <div style={{ padding:'clamp(20px,3vw,40px)', maxWidth:1400, margin:'0 auto' }}>
