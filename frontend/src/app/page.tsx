@@ -22,6 +22,27 @@ function useCountUp(target: number, duration = 2000, triggered = false) {
   return val
 }
 
+
+/* ─── Scroll reveal hook ─── */
+function useReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll('[data-reveal]')
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const el = e.target as HTMLElement
+          const delay = el.dataset.delay || '0'
+          el.style.transitionDelay = `${delay}ms`
+          el.classList.add('revealed')
+          io.unobserve(el)
+        }
+      })
+    }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' })
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+}
+
 function Stat({ n, suffix, label, delay }: { n: number; suffix: string; label: string; delay: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [on, setOn] = useState(false)
@@ -56,6 +77,7 @@ const STEPS = [
 ]
 
 export default function LandingPage() {
+  useReveal()
   const [scrollY, setScrollY] = useState(0)
   useEffect(() => {
     const h = () => setScrollY(window.scrollY)
@@ -508,6 +530,69 @@ export default function LandingPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
 
+
+        /* ── Scroll Reveal ── */
+        [data-reveal] {
+          opacity: 0;
+          transform: translateY(32px);
+          transition: opacity 0.75s cubic-bezier(0.16,1,0.3,1), transform 0.75s cubic-bezier(0.16,1,0.3,1);
+        }
+        [data-reveal="left"] { transform: translateX(-40px); }
+        [data-reveal="right"] { transform: translateX(40px); }
+        [data-reveal="scale"] { transform: scale(0.94) translateY(20px); }
+        [data-reveal="up"] { transform: translateY(32px); }
+        [data-reveal].revealed { opacity: 1; transform: none; }
+
+        /* ── Parallax lines ── */
+        .parallax-line {
+          position: absolute; left:0; right:0; height:1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+          pointer-events: none;
+        }
+
+        /* ── Feature card shimmer on reveal ── */
+        .feature-card.revealed::after {
+          content: '';
+          position: absolute; inset: 0;
+          background: linear-gradient(135deg, rgba(255,255,255,0.03), transparent);
+          pointer-events: none;
+          animation: shimmer-in 0.6s ease both;
+        }
+        @keyframes shimmer-in {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+
+        /* ── Number ticker ── */
+        @keyframes ticker-up {
+          from { transform: translateY(8px); opacity: 0; }
+          to   { transform: translateY(0);   opacity: 1; }
+        }
+        .stat-item.revealed .stat-number {
+          animation: ticker-up 0.5s cubic-bezier(0.16,1,0.3,1) both;
+        }
+
+        /* ── Process step reveal ── */
+        .process-item[data-reveal].revealed .process-num {
+          animation: ticker-up 0.4s 0.1s ease both;
+        }
+        .process-item[data-reveal].revealed .process-title {
+          animation: ticker-up 0.4s 0.2s ease both;
+        }
+        .process-item[data-reveal].revealed .process-body {
+          animation: ticker-up 0.4s 0.3s ease both;
+        }
+
+        /* ── Risk row stagger ── */
+        .risk-row[data-reveal].revealed {
+          transition-delay: var(--row-delay, 0ms) !important;
+        }
+
+        /* ── Hero counter on load ── */
+        .stats-strip [data-reveal] {
+          transition-duration: 0.6s;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 900px) {
           .nav { padding: 20px 24px; }
@@ -527,6 +612,38 @@ export default function LandingPage() {
           .hero-title { letter-spacing: -0.02em; }
         }
       `}</style>
+
+      {/* ── Scroll progress bar ── */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, zIndex: 200, height: 2,
+        background: 'linear-gradient(90deg, rgba(200,216,232,0.9), rgba(200,216,232,0.3))',
+        width: `${Math.min((scrollY / (3000)) * 100, 100)}%`,
+        transition: 'width 0.1s linear',
+        boxShadow: '0 0 8px rgba(200,216,232,0.6)',
+      }} />
+
+      {/* ── Floating orbs (parallax) ── */}
+      <div aria-hidden style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
+        <div style={{
+          position:'absolute', width:600, height:600, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(200,216,232,0.03) 0%, transparent 70%)',
+          top: `calc(20% - ${scrollY * 0.08}px)`, left:'60%',
+          transform:'translateX(-50%)',
+          transition:'top 0.05s linear',
+        }} />
+        <div style={{
+          position:'absolute', width:400, height:400, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(200,216,232,0.025) 0%, transparent 70%)',
+          top: `calc(60% - ${scrollY * 0.04}px)`, left:'20%',
+          transition:'top 0.05s linear',
+        }} />
+        <div style={{
+          position:'absolute', width:300, height:300, borderRadius:'50%',
+          background:'radial-gradient(circle, rgba(200,216,232,0.02) 0%, transparent 70%)',
+          top: `calc(80% + ${scrollY * 0.03}px)`, right:'15%',
+          transition:'top 0.05s linear',
+        }} />
+      </div>
 
       {/* ── Nav ── */}
       <nav className={`nav${scrollY > 40 ? ' scrolled' : ''}`}>
@@ -567,7 +684,7 @@ export default function LandingPage() {
         </div>
 
         {/* Stats strip */}
-        <div className="stats-strip">
+        <div className="stats-strip" data-reveal="up" data-delay="300">
           <Stat n={85} suffix="%" label="Prediction Accuracy" delay={0} />
           <Stat n={3} suffix="×" label="Faster Intervention" delay={80} />
           <Stat n={67} suffix="%" label="Prevention Rate" delay={160} />
@@ -578,11 +695,11 @@ export default function LandingPage() {
       {/* ── Dashboard preview ── */}
       <div className="section" style={{ paddingTop: 0 }} id="demo">
         <div style={{ marginBottom: 48 }}>
-          <div className="section-label">Live System Preview</div>
-          <h2 className="section-title">The Early Warning<br /><em>Command Center</em></h2>
+          <div className="section-label" data-reveal="up" data-delay="0">Live System Preview</div>
+          <h2 className="section-title" data-reveal="up" data-delay="80">The Early Warning<br /><em>Command Center</em></h2>
         </div>
 
-        <div className="risk-preview">
+        <div className="risk-preview" data-reveal="scale" data-delay="100">
           <div className="risk-header">
             <div className="risk-dot" style={{ background: '#ef4444' }} />
             <div className="risk-dot" style={{ background: '#eab308', marginLeft: 4 }} />
@@ -604,7 +721,7 @@ export default function LandingPage() {
             { name: 'Fatima Hassan', prog: 'Engineering', risk: 0.58, gpa: 12.8, level: 'medium', color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
             { name: 'James Okonkwo', prog: 'Psychology', risk: 0.21, gpa: 16.2, level: 'low', color: '#22c55e', bg: 'transparent' },
           ].map(s => (
-            <div key={s.name} className="risk-row" style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 80px 80px', gap: 16, alignItems: 'center' }}>
+            <div key={s.name} className="risk-row" data-reveal="up" data-delay="0" style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 80px 80px', gap: 16, alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div className="risk-avatar" style={{ background: s.bg, color: s.color }}>
                   {s.name.charAt(0)}
@@ -636,18 +753,18 @@ export default function LandingPage() {
       {/* ── Features ── */}
       <div className="section" id="features">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, marginBottom: 64, alignItems: 'end' }}>
-          <div>
+          <div data-reveal="left" data-delay="0">
             <div className="section-label">Platform Capabilities</div>
             <h2 className="section-title">Every Tool to<br /><em>Protect Success</em></h2>
           </div>
-          <div className="section-body">
+          <div className="section-body" data-reveal="right" data-delay="100">
             Six tightly integrated capabilities — from raw data ingestion to counselor-ready action plans — running on a self-hosted stack with no cloud dependencies.
           </div>
         </div>
 
         <div className="features-grid">
           {FEATURES.map(f => (
-            <div key={f.title} className="feature-card">
+            <div key={f.title} className="feature-card" data-reveal="up" data-delay="0">
               <div className="feature-tag">{f.tag}</div>
               <span className="feature-icon">{f.icon}</span>
               <div className="feature-title">{f.title}</div>
@@ -662,13 +779,13 @@ export default function LandingPage() {
       {/* ── Process ── */}
       <div className="section" id="process">
         <div style={{ marginBottom: 64 }}>
-          <div className="section-label">How It Works</div>
-          <h2 className="section-title">From Data<br /><em>to Intervention</em></h2>
+          <div className="section-label" data-reveal="up" data-delay="0">How It Works</div>
+          <h2 className="section-title" data-reveal="up" data-delay="80">From Data<br /><em>to Intervention</em></h2>
         </div>
 
         <div className="process-grid">
           {STEPS.map((s, i) => (
-            <div key={s.n} className="process-item">
+            <div key={s.n} className="process-item" data-reveal="up" data-delay="0">
               <div className="process-num">STEP {s.n}</div>
               <div className="process-title">{s.title}</div>
               <p className="process-body">{s.body}</p>
@@ -682,11 +799,11 @@ export default function LandingPage() {
 
       {/* ── CTA ── */}
       <section className="cta-section">
-        <h2 className="cta-title">Ready to<br />Intervene?</h2>
-        <p className="cta-sub">
+        <h2 className="cta-title" data-reveal="up" data-delay="0">Ready to<br />Intervene?</h2>
+        <p className="cta-sub" data-reveal="up" data-delay="100">
           Deploy SentinelEdu in minutes with Docker Compose. Full data sovereignty — nothing leaves your infrastructure.
         </p>
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+        <div data-reveal="up" data-delay="180" style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
           <Link href="/dashboard" className="btn-primary">
             Open Command Center <span className="arrow">→</span>
           </Link>
